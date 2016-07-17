@@ -102,16 +102,18 @@ class db(object):
             cmd = ['INSERT', table, 'SET', ', '.join(['%s = %%s' % column for column in columns])]
             rows = [tuple(row.get(column, assignments.get(column)) for column in columns) for row in args]
             self._execute_many(' '.join(cmd), rows)
+            return range(self.cursor.lastrowid - self.cursor.rowcount + 1, self.cursor.lastrowid + 1)
         elif any([isinstance(value, list) for value in assignments.values()]):
             assignments = list(assignments.items())
             cmd = ['INSERT', table, 'SET', ', '.join(['%s = %%s' % column for column, _ in assignments])]
             rows = [tuple([value[index] if isinstance(value, list) else value for _, value in assignments])
                     for index in range(min([len(value) for _, value in assignments if isinstance(value, list)]))]
             self._execute_many(' '.join(cmd), rows)
+            return range(self.cursor.lastrowid - self.cursor.rowcount + 1, self.cursor.lastrowid + 1)
         else:
             cmd = ['INSERT', table, 'SET', (self._set(assignments))]
             self._execute_one(' '.join(cmd), assignments)
-        return self.cursor.lastrowid
+            return self.cursor.lastrowid
 
     def update(self, table, where, **assignments):
         cmd = ['UPDATE', table, 'SET', (self._set(assignments)), 'WHERE', db._where_item(assignments, 'id', where)]

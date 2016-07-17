@@ -57,33 +57,33 @@ class TestDb(TestCase):
 
     def test_insert_many(self):
         with mysql_ext.db('test') as query:
-            self.assertEqual(3, query.insert('texts',
-                                             dict(date=self.date1, text=self.text1),
-                                             dict(date=self.date2, text=self.text2),
-                                             dict(date=self.date1)))
+            self.assertListEqual([1, 2, 3], list(query.insert('texts',
+                                                              dict(date=self.date1, text=self.text1),
+                                                              dict(date=self.date2, text=self.text2),
+                                                              dict(date=self.date1))))
             self.assertListEqual([self.text1, self.text2, None], query.select('texts', 'text'))
 
     def test_insert_many_with_defaults(self):
         with mysql_ext.db('test') as query:
-            self.assertEqual(3, query.insert('texts',
-                                             dict(date=self.date1, text=self.text1),
-                                             dict(date=self.date2, text=self.text2),
-                                             dict(date=self.date1),
-                                             text=self.text2))
+            self.assertEqual(range(1, 4), query.insert('texts',
+                                                       dict(date=self.date1, text=self.text1),
+                                                       dict(date=self.date2, text=self.text2),
+                                                       dict(date=self.date1),
+                                                       text=self.text2))
             self.assertListEqual([self.text1, self.text2, self.text2], query.select('texts', 'text'))
 
     def test_insert_many_as_lists(self):
         with mysql_ext.db('test') as query:
-            self.assertEqual(2, query.insert('texts',
-                                             date=[self.date1, self.date2, self.date1],
-                                             text=[self.text1, self.text2]))
+            self.assertListEqual([1, 2], list(query.insert('texts',
+                                                           date=[self.date1, self.date2, self.date1],
+                                                           text=[self.text1, self.text2])))
             self.assertListEqual([self.text1, self.text2], query.select('texts', 'text'))
 
     def test_insert_many_as_lists_with_default(self):
         with mysql_ext.db('test') as query:
-            self.assertEqual(3, query.insert('texts',
-                                             date=[self.date1, self.date2, self.date1],
-                                             text=self.text1))
+            self.assertEqual(range(1, 4), query.insert('texts',
+                                                       date=[self.date1, self.date2, self.date1],
+                                                       text=self.text1))
             self.assertListEqual([self.text1, self.text1, self.text1], query.select('texts', 'text'))
 
     def test_update(self):
