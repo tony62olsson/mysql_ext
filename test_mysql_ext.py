@@ -1,5 +1,8 @@
 import datetime
+import pprint
 from unittest import TestCase
+
+import mysql
 
 import mysql_ext
 
@@ -14,7 +17,7 @@ class TestDb(TestCase):
         self.date2 = datetime.datetime(2016, 1, 2, 10, 20, 30, 123456)
         self.text2 = 'This is another text.'
         with mysql_ext.db('test') as query:
-            query('CREATE TABLE texts (id INT AUTO_INCREMENT PRIMARY KEY, date DATETIME(6), text TEXT)')
+            query.create('texts', date=datetime.datetime, text=(str, None, 30))
 
     def basic_insert(self, query: mysql_ext.db):
         query.insert('texts', date=self.date1, text=self.text1)
@@ -23,6 +26,13 @@ class TestDb(TestCase):
     def tearDown(self):
         with mysql_ext.db('test') as query:
             query('DROP TABLE texts')
+
+    def test_columns(self):
+        with mysql_ext.db('test') as query:
+            self.assertListEqual([('date', 'datetime(6)', 'NO', '', None, ''),
+                                  ('id', 'int(10) unsigned', 'NO', 'PRI', None, 'auto_increment'),
+                                  ('text', 'varchar(30)', 'YES', '', None, '')],
+                                 sorted(query('SHOW COLUMNS FROM texts')))
 
     def test_select(self):
         with mysql_ext.db('test') as query:
@@ -44,6 +54,37 @@ class TestDb(TestCase):
             self.assertListEqual([self.text1, self.text2], query.select('texts', 'text', id=[1, 2]))
             self.assertListEqual([self.text1], query.select('texts', 'text', id=1))
             self.assertListEqual([self.text2], query.select('texts', 'text', id=2))
+
+    def test_insert_many(self):
+        with mysql_ext.db('test') as query:
+            self.assertEqual(3, query.insert('texts',
+                                             dict(date=self.date1, text=self.text1),
+                                             dict(date=self.date2, text=self.text2),
+                                             dict(date=self.date1)))
+            self.assertListEqual([self.text1, self.text2, None], query.select('texts', 'text'))
+
+    def test_insert_many_with_defaults(self):
+        with mysql_ext.db('test') as query:
+            self.assertEqual(3, query.insert('texts',
+                                             dict(date=self.date1, text=self.text1),
+                                             dict(date=self.date2, text=self.text2),
+                                             dict(date=self.date1),
+                                             text=self.text2))
+            self.assertListEqual([self.text1, self.text2, self.text2], query.select('texts', 'text'))
+
+    def test_insert_many_as_lists(self):
+        with mysql_ext.db('test') as query:
+            self.assertEqual(2, query.insert('texts',
+                                             date=[self.date1, self.date2, self.date1],
+                                             text=[self.text1, self.text2]))
+            self.assertListEqual([self.text1, self.text2], query.select('texts', 'text'))
+
+    def test_insert_many_as_lists_with_default(self):
+        with mysql_ext.db('test') as query:
+            self.assertEqual(3, query.insert('texts',
+                                             date=[self.date1, self.date2, self.date1],
+                                             text=self.text1))
+            self.assertListEqual([self.text1, self.text1, self.text1], query.select('texts', 'text'))
 
     def test_update(self):
         with mysql_ext.db('test') as query:
