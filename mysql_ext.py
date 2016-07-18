@@ -1,32 +1,22 @@
-import configparser
 import datetime
-import os
 
 import mysql.connector
 
 
 class db(object):
 
+    databases = dict()
     connections = dict()
     level = dict()
 
     @staticmethod
-    def configure(configuration_file=None):
-        if configuration_file is None:
-            configuration_file = os.path.join(os.path.expanduser('~'), '.mysql_dbs.cfg')
-        conf = configparser.ConfigParser()
-        conf.read(configuration_file)
-        db.known_databases = dict()
-        for section in conf.sections():
-            database_options = dict()
-            for option in conf.options(section):
-                database_options[option] = conf.get(section, option).strip()
-            db.known_databases[section] = database_options
+    def add_database(database, **kwargs):
+        db.databases[database] = kwargs
 
     def __init__(self, name, **kwargs):
         self.name = name
         if name not in db.connections:
-            for key, value in db.known_databases.get(name, dict()).items():
+            for key, value in db.databases.get(name, dict()).items():
                 if key not in kwargs:
                     kwargs[key] = value
             if 'database' not in kwargs:

@@ -1,15 +1,14 @@
 import datetime
-import pprint
 from unittest import TestCase
-
-import mysql
 
 import mysql_ext
 
-mysql_ext.db.configure()
-
 
 class TestDb(TestCase):
+
+    @staticmethod
+    def setUpClass():
+        mysql_ext.db.add_database('test', user='test', password='test1234')
 
     def setUp(self):
         self.date1 = datetime.datetime(2015, 1, 2, 10, 20, 30, 123456)
@@ -26,6 +25,13 @@ class TestDb(TestCase):
     def tearDown(self):
         with mysql_ext.db('test') as query:
             query('DROP TABLE texts')
+            query('DROP TABLE IF EXISTS times')
+
+    def test_create(self):
+        with mysql_ext.db('test') as query:
+            query.create('times', time=datetime.time, text_id=id)
+            for text_id, date in query.select('texts', 'id', 'date'):
+                query.insert('times', time=date.time(), text_id=text_id)
 
     def test_columns(self):
         with mysql_ext.db('test') as query:
