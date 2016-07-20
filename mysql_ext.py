@@ -25,7 +25,6 @@ class db(object):
                 kwargs['host'] = '127.0.0.1'
             db.connections[name] = mysql.connector.connect(**kwargs)
         self.cnx = db.connections[name]
-        self.queries = []
 
     def __enter__(self):
         if not self.cnx.is_connected():
@@ -34,7 +33,7 @@ class db(object):
             db.level[self.name] = 1
         else:
             db.level[self.name] += 1
-        self.cursor = self.cnx.cursor()
+        self.cursor = self.cnx.cursor(named_tuple=True)
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -95,9 +94,10 @@ class db(object):
             return range(self.cursor.lastrowid - self.cursor.rowcount + 1, self.cursor.lastrowid + 1)
         elif any([isinstance(value, list) for value in assignments.values()]):
             assignments = list(assignments.items())
+            insertions = min(len(value) for _, value in assignments if isinstance(value, list))
             cmd = ['INSERT', table, 'SET', ', '.join(['%s = %%s' % column for column, _ in assignments])]
-            rows = [tuple([value[index] if isinstance(value, list) else value for _, value in assignments])
-                    for index in range(min([len(value) for _, value in assignments if isinstance(value, list)]))]
+            rows = [tuple(value[index] if isinstance(value, list) else value for _, value in assignments)
+                    for index in range(insertions)]
             self._execute_many(' '.join(cmd), rows)
             return range(self.cursor.lastrowid - self.cursor.rowcount + 1, self.cursor.lastrowid + 1)
         else:
@@ -112,7 +112,7 @@ class db(object):
 
     def delete(self, table, **where):
         dictionary = dict()
-        cmd = ['DELETE', 'FROM', table, 'WHERE', db._where_item(dictionary, 'id', where)]
+        cmd = ['DELETE', 'FROM', table, 'WHERE', db._where(dictionary, where)]
         self._execute_one(' '.join(cmd), dictionary)
         return self.cursor.rowcount
 
@@ -170,7 +170,10 @@ class db(object):
 
     @staticmethod
     def _where(dictionary, predicates):
-        return ' AND '.join([db._where_item(dictionary, key, val) for key, val in predicates.items()])
+        if predicates:
+            return ' AND '.join([db._where_item(dictionary, key, val) for key, val in predicates.items()])
+        else:
+            return 'TRUE'
 
     @staticmethod
     def _where_item(dictionary, key, val):
@@ -179,9 +182,15 @@ class db(object):
         elif isinstance(val, int):
             return '%s = %d' % (key, val)
         elif isinstance(val, (tuple, list, set, frozenset)):
-            return '(%s)' % ' OR '.join([db._where_item(dictionary, key, value) for value in val])
+            if val:
+                return '(%s)' % ' OR '.join([db._where_item(dictionary, key, value) for value in val])
+            else:
+                return 'FALSE'
         elif isinstance(val, dict):
-            return '(%s)' % db._where(dictionary, val)
+            if val:
+                return '(%s)' % db._where(dictionary, val)
+            else:
+                return 'TRUE'
         else:
             sub_key = '%s#%s' % (key, len(dictionary))
             dictionary[sub_key] = val

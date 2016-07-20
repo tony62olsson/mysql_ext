@@ -1,6 +1,8 @@
 import datetime
 from unittest import TestCase
 
+import mysql.connector
+
 import mysql_ext
 
 
@@ -25,20 +27,15 @@ class TestDb(TestCase):
     def tearDown(self):
         with mysql_ext.db('test') as query:
             query('DROP TABLE texts')
-            query('DROP TABLE IF EXISTS times')
+            query('DROP TABLE IF EXISTS test')
 
     def test_create(self):
         with mysql_ext.db('test') as query:
-            query.create('times', time=datetime.time, text_id=id)
-            for text_id, date in query.select('texts', 'id', 'date'):
-                query.insert('times', time=date.time(), text_id=text_id)
-
-    def test_columns(self):
-        with mysql_ext.db('test') as query:
-            self.assertListEqual([('date', 'datetime(6)', 'NO', '', None, ''),
-                                  ('id', 'int(10) unsigned', 'NO', 'PRI', None, 'auto_increment'),
-                                  ('text', 'varchar(30)', 'YES', '', None, '')],
-                                 sorted(query('SHOW COLUMNS FROM texts')))
+            query.create('test', time=datetime.time, text_id=id)
+            self.assertListEqual([('id', 'int(10) unsigned', 'NO', 'PRI', None, 'auto_increment'),
+                                  ('text_id', 'int(10) unsigned', 'NO', '', None, ''),
+                                  ('time', 'time(6)', 'NO', '', None, '')],
+                                 sorted(query('SHOW COLUMNS FROM test')))
 
     def test_select(self):
         with mysql_ext.db('test') as query:
@@ -46,6 +43,19 @@ class TestDb(TestCase):
             self.assertListEqual([self.text1, self.text2], query.select('texts', 'text'))
             self.assertListEqual([self.text1], query.select('texts', 'text', date=self.date1))
             self.assertListEqual([self.text2], query.select('texts', 'text', date=self.date2))
+
+    def test_select_named_tuple(self):
+        with mysql_ext.db('test') as query:
+            self.basic_insert(query)
+            rows = query.select('texts', '*')
+            self.assertListEqual([1, 2], [row.id for row in rows])
+            self.assertListEqual([self.date1, self.date2], [row.date for row in rows])
+            self.assertListEqual([self.text1, self.text2], [row.text for row in rows])
+
+    def test_no_selects(self):
+        with mysql_ext.db('test') as query:
+            self.basic_insert(query)
+            self.assertListEqual([], query.select('texts', text=[]))
 
     def test_select_ids(self):
         with mysql_ext.db('test') as query:
@@ -100,8 +110,20 @@ class TestDb(TestCase):
             self.assertEqual(0, query.update('texts', dict(text=text), text=text))
             self.assertListEqual([self.text1, text], query.select('texts', 'text'))
 
+    def test_no_updates(self):
+        with mysql_ext.db('test') as query:
+            self.basic_insert(query)
+            self.assertEqual(0, query.update('texts', [], text="dummy"))
+            self.assertListEqual([self.text1, self.text2], query.select('texts', 'text'))
+
     def test_delete(self):
         with mysql_ext.db('test') as query:
             self.basic_insert(query)
             self.assertEqual(1, query.delete('texts', text=self.text1))
             self.assertListEqual([2], query.select('texts'))
+
+    def test_no_deletes(self):
+        with mysql_ext.db('test') as query:
+            self.basic_insert(query)
+            self.assertEqual(0, query.delete('texts', id=[]))
+            self.assertListEqual([1, 2], query.select('texts'))
